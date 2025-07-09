@@ -1,0 +1,39 @@
+name: Validate JSON Files on PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate-json:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Get list of changed files
+      id: changed-files
+      uses: tj-actions/changed-files@v44
+
+    - name: Validate files are all JSON
+      run: |
+        for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+          if [[ "${file}" != *.json ]]; then
+            echo "❌ Only .json files are allowed. Invalid file: $file"
+            exit 1
+          fi
+        done
+        echo "✅ All files are .json"
+
+    - name: Validate JSON format
+      run: |
+        for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+          jq 'select(type=="object")
+              | has("title") and has("description") and has("constraints")
+              and (.constraints | type=="array")' "$file" > /dev/null
+          if [ $? -ne 0 ]; then
+            echo "❌ File $file does not match the expected format."
+            exit 1
+          fi
+        done
+        echo "✅ All JSON files have correct structure"
